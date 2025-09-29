@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Daily Expense Tracker</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    :root { --gap: 0.75rem; }
+    body { padding-block: 1.2rem; }
+    .grid { display: grid; gap: var(--gap);} 
+    .grid-2 { grid-template-columns: repeat(auto-fit,minmax(280px,1fr)); }
+    .grid-3 { grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); }
+    .kpi { padding: 0.9rem 1rem; border-radius: 14px; background: var(--muted-border-color); }
+    .kpi h6 { margin: 0 0 .35rem 0; opacity: .7; font-weight: 600; }
+    .kpi .v { font-size: 1.35rem; font-weight: 700; }
+    .table-wrap { overflow:auto; max-height: 50vh; border: 1px solid var(--muted-border-color); border-radius: 12px; }
+    table { width: 100%; }
+    canvas { background: white; border-radius: 12px; padding: .5rem; }
+    .pill { padding: .25rem .6rem; border-radius: 999px; background: var(--muted-border-color); font-size: .85rem; }
+    .muted { opacity: .7; }
+    footer { margin-top: 2rem; opacity: .7; font-size: .9rem; }
+    .tag { display:inline-flex; align-items:center; gap:.35rem; background: var(--muted-border-color); padding:.25rem .6rem; border-radius:999px; }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <header class="grid grid-2" style="align-items:center;">
+      <div>
+        <h2>Daily Expense Tracker</h2>
+        <p class="muted">Fast, private, and offline-first. Data is saved in your browser (localStorage). Export/Import anytime.</p>
+      </div>
+      <div class="grid grid-3">
+        <label>
+          <span>Currency</span>
+          <select id="currencySelect"></select>
+        </label>
+        <label>
+          <span>Monthly Budget</span>
+          <input id="monthlyBudget" type="number" min="0" step="0.01" placeholder="0.00" />
+        </label>
+        <label>
+          <span>Start Date</span>
+          <input id="startDate" type="date" />
+        </label>
+      </div>
+    </header>
+
+    <section class="grid grid-3">
+      <div class="kpi"><h6>Today's Spend</h6><div class="v" id="kpiToday">—</div></div>
+      <div class="kpi"><h6>This Month's Spend</h6><div class="v" id="kpiMonthSpend">—</div></div>
+      <div class="kpi"><h6>Salary (This Month)</h6><div class="v" id="kpiSalary">—</div></div>
+      <div class="kpi"><h6>Other Income (This Month)</h6><div class="v" id="kpiOtherIncome">—</div></div>
+      <div class="kpi"><h6>Monthly Budget</h6><div class="v" id="kpiBudget">—</div></div>
+      <div class="kpi"><h6>Left (Budget − Spend)</h6><div class="v" id="kpiLeft">—</div></div>
+    </section>
+
+    <details open>
+      <summary><strong>Add Entry</strong></summary>
+      <div class="grid grid-3">
+        <label><span>Date</span><input id="txDate" type="date"></label>
+        <label><span>Description</span><input id="txDesc" type="text" placeholder="e.g., Groceries"></label>
+        <label><span>Category</span>
+          <select id="txCat"></select>
+        </label>
+        <label><span>Type</span>
+          <select id="txType">
+            <option>Expense</option>
+            <option>Income</option>
+            <option>Salary</option>
+          </select>
+        </label>
+        <label><span>Amount</span><input id="txAmt" type="number" step="0.01" min="0"></label>
+        <label><span>Payment Method</span><input id="txPay" type="text" placeholder="Card/Cash/Bank"></label>
+      </div>
+      <label><span>Notes</span><textarea id="txNotes" rows="2" placeholder="Optional notes"></textarea></label>
+      <div style="display:flex; gap:.5rem;">
+        <button id="btnAdd">Add</button>
+        <button id="btnResetForm" class="secondary">Clear</button>
+      </div>
+    </details>
+
+    <details>
+      <summary><strong>Categories</strong> <span class="pill" id="catCount"></span></summary>
+      <div class="grid grid-3">
+        <label><span>Add Category</span><input id="newCategory" type="text" placeholder="e.g., Education"></label>
+        <button id="btnAddCat" style="align-self:end;">Add Category</button>
+        <button id="btnResetCat" class="secondary" style="align-self:end;">Reset to Defaults</button>
+      </div>
+      <div id="catTags" style="margin-top:.5rem; display:flex; gap:.4rem; flex-wrap:wrap;"></div>
+    </details>
+
+    <section class="grid grid-2">
+      <article>
+        <h4>Transactions</h4>
+        <div class="table-wrap">
+          <table id="txTable">
+            <thead>
+              <tr>
+                <th>Date</th><th>Description</th><th>Category</th><th>Type</th><th>Amount</th><th>Method</th><th>Notes</th><th></th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+      <article>
+        <h4>Salary Log</h4>
+        <div class="grid grid-3">
+          <label><span>Date</span><input id="salDate" type="date"></label>
+          <label><span>Employer/Source</span><input id="salSrc" type="text" placeholder="Company name"></label>
+          <label><span>Amount</span><input id="salAmt" type="number" step="0.01" min="0"></label>
+        </div>
+        <label><span>Notes</span><textarea id="salNotes" rows="2" placeholder="Optional salary notes"></textarea></label>
+        <div style="display:flex; gap:.5rem;">
+          <button id="btnAddSalary">Add Salary</button>
+          <button id="btnClearSalaryForm" class="secondary">Clear</button>
+        </div>
+        <div class="table-wrap" style="margin-top: .75rem;">
+          <table id="salTable">
+            <thead><tr><th>Date</th><th>Source</th><th>Amount</th><th>Notes</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid grid-2">
+      <article>
+        <h4>Spend by Category (This Month)</h4>
+        <canvas id="catChart" height="220"></canvas>
+      </article>
+      <article>
+        <h4>Monthly Spend Trend (Last 6 Months)</h4>
+        <canvas id="trendChart" height="220"></canvas>
+      </article>
+    </section>
+
+    <section>
+      <h4>Backup & Export</h4>
+      <div class="grid grid-3">
+        <button id="btnExportCSV">Export Transactions CSV</button>
+        <button id="btnBackupJSON">Backup (JSON)</button>
+        <label>
+          <span>Restore (JSON)</span>
+          <input type="file" id="restoreFile" accept="application/json" />
+        </label>
+      </div>
+    </section>
+
+    <footer>
+      <p>Pro tip: Host this file on <strong>GitHub Pages</strong> — just upload <code>index.html</code> to a repo and enable Pages. All data stays in your browser storage.</p>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    /* =============================
+       Storage & State
+    ============================== */
+    const STORE_KEY = 'expense-tracker-v1';
+    const defaults = {
+      startDate: new Date().toISOString().slice(0,10),
+      budget: 0,
+      currency: 'AED',
+      categories: [
+        'Food & Groceries','Transport','Rent','Utilities','Health','Shopping',
+        'Subscriptions','Education','Entertainment','Travel','Gifts/Donations',
+        'Business','Misc'
+      ],
+      transactions: [],
+      salaries: []
+    };
+
+    const currencies = [
+      ['AED','د.إ'],['USD','$'],['GBP','£'],['EUR','€'],['PKR','₨'],['SAR','﷼'],['INR','₹'],['CAD','$'],['AUD','$'],['BRL','R$']
+    ];
+
+    let state = load();
+
+    function load(){
+      try{ return JSON.parse(localStorage.getItem(STORE_KEY)) || {...defaults}; }catch(e){ return {...defaults}; }
+    }
+    function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+    /* =============================
+       Helpers
+    ============================== */
+    const $ = sel => document.querySelector(sel);
+    const tbody = sel => document.querySelector(sel+" tbody");
+    const fmt = v => isNaN(v) ? '—' : `${symbol()}${Number(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+    const symbol = () => currencies.find(c=>c[0]===state.currency)?.[1] || '¤';
+    const toDate = s => new Date(s+'T00:00:00');
+
+    function monthBounds(d){
+      const first = new Date(d.getFullYear(), d.getMonth(), 1);
+      const last  = new Date(d.getFullYear(), d.getMonth()+1, 0);
+      return [first,last];
+    }
+
+    function todayISO(){ return new Date().toISOString().slice(0,10); }
+
+    /* =============================
+       UI Init
+    ============================== */
+    function initSelectors(){
+      // Currency
+      const curSel = $('#currencySelect');
+      curSel.innerHTML = currencies.map(([c,s])=>`<option value="${c}">${c} (${s})</option>`).join('');
+      curSel.value = state.currency;
+      curSel.addEventListener('change', e=>{ state.currency = e.target.value; save(); render(); });
+
+      // Budget
+      const bud = $('#monthlyBudget');
+      bud.value = state.budget;
+      bud.addEventListener('input', e=>{ state.budget = Number(e.target.value||0); save(); renderKPIs(); });
+
+      // Start date
+      const sd = $('#startDate');
+      sd.value = state.startDate || todayISO();
+      sd.addEventListener('change', e=>{ state.startDate = e.target.value; save(); renderKPIs(); });
+
+      // Form defaults
+      $('#txDate').value = todayISO();
+      $('#salDate').value = todayISO();
+
+      // Categories
+      refreshCategoriesUI();
+      $('#btnAddCat').onclick = ()=>{
+        const v = $('#newCategory').value.trim();
+        if(!v) return;
+        if(!state.categories.includes(v)) state.categories.push(v);
+        $('#newCategory').value=''; save(); refreshCategoriesUI();
+      }
+      $('#btnResetCat').onclick = ()=>{ state.categories = [...defaults.categories]; save(); refreshCategoriesUI(); };
+    }
+
+    function refreshCategoriesUI(){
+      const catSel = $('#txCat');
+      catSel.innerHTML = state.categories.map(c=>`<option>${c}</option>`).join('');
+      $('#catCount').textContent = state.categories.length + ' categories';
+      const tagWrap = $('#catTags');
+      tagWrap.innerHTML = '';
+      state.categories.forEach((c,i)=>{
+        const span = document.createElement('span');
+        span.className='tag';
+        span.innerHTML = `<span>${c}</span> <button class="secondary" data-i="${i}" style="padding:.1rem .4rem;">x</button>`;
+        tagWrap.appendChild(span);
+      });
+      // remove handlers
+      tagWrap.querySelectorAll('button').forEach(btn=>{
+        btn.onclick = (e)=>{
+          const i = Number(e.currentTarget.dataset.i);
+          state.categories.splice(i,1); save(); refreshCategoriesUI();
+        }
+      });
+    }
+
+    /* =============================
+       Add / Remove Rows
+    ============================== */
+    $('#btnAdd').onclick = ()=>{
+      const row = {
+        date: $('#txDate').value || todayISO(),
+        desc: $('#txDesc').value.trim(),
+        cat: $('#txCat').value,
+        type: $('#txType').value,
+        amt: Number($('#txAmt').value||0),
+        pay: $('#txPay').value.trim(),
+        notes: $('#txNotes').value.trim()
+      };
+      if(!row.amt) return alert('Amount required');
+      state.transactions.unshift(row); save();
+      $('#btnResetForm').click();
+      renderTables(); renderKPIs(); renderCharts();
+    };
+    $('#btnResetForm').onclick = ()=>{
+      $('#txDesc').value=''; $('#txAmt').value=''; $('#txPay').value=''; $('#txNotes').value='';
+      $('#txDate').value=todayISO();
+    };
+
+    $('#btnAddSalary').onclick = ()=>{
+      const row = {
+        date: $('#salDate').value || todayISO(),
+        src: $('#salSrc').value.trim(),
+        amt: Number($('#salAmt').value||0),
+        notes: $('#salNotes').value.trim()
+      };
+      if(!row.amt) return alert('Amount required');
+      state.salaries.unshift(row); save();
+      $('#btnClearSalaryForm').click();
+      renderTables(); renderKPIs(); renderCharts();
+    };
+    $('#btnClearSalaryForm').onclick = ()=>{ $('#salSrc').value=''; $('#salAmt').value=''; $('#salNotes').value=''; $('#salDate').value=todayISO(); };
+
+    function deleteTx(i){ state.transactions.splice(i,1); save(); renderTables(); renderKPIs(); renderCharts(); }
+    function deleteSal(i){ state.salaries.splice(i,1); save(); renderTables(); renderKPIs(); renderCharts(); }
+
+    /* =============================
+       Tables
+    ============================== */
+    function renderTables(){
+      // Transactions
+      const body = tbody('#txTable');
+      body.innerHTML = '';
+      state.transactions.forEach((t,i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${t.date}</td>
+          <td>${escapeHtml(t.desc)}</td>
+          <td>${escapeHtml(t.cat)}</td>
+          <td>${t.type}</td>
+          <td>${fmt(t.amt)}</td>
+          <td>${escapeHtml(t.pay)}</td>
+          <td>${escapeHtml(t.notes)}</td>
+          <td><button class="secondary" data-i="${i}">Delete</button></td>
+        `;
+        body.appendChild(tr);
+      });
+      body.querySelectorAll('button').forEach(b=> b.onclick = (e)=> deleteTx(Number(e.currentTarget.dataset.i)) );
+
+      // Salaries
+      const sb = tbody('#salTable');
+      sb.innerHTML = '';
+      state.salaries.forEach((s,i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.date}</td>
+          <td>${escapeHtml(s.src)}</td>
+          <td>${fmt(s.amt)}</td>
+          <td>${escapeHtml(s.notes)}</td>
+          <td><button class="secondary" data-i="${i}">Delete</button></td>
+        `;
+        sb.appendChild(tr);
+      });
+      sb.querySelectorAll('button').forEach(b=> b.onclick = (e)=> deleteSal(Number(e.currentTarget.dataset.i)) );
+    }
+
+    function escapeHtml(s=''){
+      return s.replace(/[&<>\"']/g, (m)=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    }
+
+    /* =============================
+       KPIs
+    ============================== */
+    function renderKPIs(){
+      const cur = new Date(state.startDate || todayISO());
+      const [mStart, mEnd] = monthBounds(cur);
+
+      // Today
+      const today = todayISO();
+      const todaySpend = state.transactions.filter(t=>t.type==='Expense' && t.date===today).reduce((a,b)=>a+b.amt,0);
+
+      // Month spend & income
+      const inMonth = d => { const dt = toDate(d); return dt>=mStart && dt<=mEnd; };
+      const monthSpend = state.transactions.filter(t=>t.type==='Expense' && inMonth(t.date)).reduce((a,b)=>a+b.amt,0);
+      const monthOtherIncome = state.transactions.filter(t=>t.type==='Income' && inMonth(t.date)).reduce((a,b)=>a+b.amt,0);
+      const monthSalary = state.salaries.filter(s=> inMonth(s.date)).reduce((a,b)=>a+b.amt,0) + state.transactions.filter(t=>t.type==='Salary' && inMonth(t.date)).reduce((a,b)=>a+b.amt,0);
+
+      // Update UI
+      $('#kpiToday').textContent = fmt(todaySpend);
+      $('#kpiMonthSpend').textContent = fmt(monthSpend);
+      $('#kpiOtherIncome').textContent = fmt(monthOtherIncome);
+      $('#kpiSalary').textContent = fmt(monthSalary);
+      $('#kpiBudget').textContent = fmt(state.budget);
+      $('#kpiLeft').textContent = fmt((state.budget||0) - monthSpend);
+    }
+
+    /* =============================
+       Charts
+    ============================== */
+    let catChart, trendChart;
+    function renderCharts(){
+      const cur = new Date(state.startDate || todayISO());
+      const [mStart, mEnd] = monthBounds(cur);
+
+      // Category aggregation (this month)
+      const catMap = new Map();
+      state.categories.forEach(c=>catMap.set(c,0));
+      state.transactions.forEach(t=>{
+        const dt = toDate(t.date);
+        if(t.type==='Expense' && dt>=mStart && dt<=mEnd){
+          catMap.set(t.cat, (catMap.get(t.cat)||0) + t.amt);
+        }
+      });
+      const catLabels = Array.from(catMap.keys());
+      const catValues = Array.from(catMap.values());
+
+      // Trend: last 6 months spend
+      const trendLabels = [];
+      const trendValues = [];
+      const base = new Date(cur.getFullYear(), cur.getMonth(), 1);
+      for(let i=5;i>=0;i--){
+        const first = new Date(base.getFullYear(), base.getMonth()-i, 1);
+        const last  = new Date(base.getFullYear(), base.getMonth()-i+1, 0);
+        const label = first.toLocaleString(undefined,{month:'short', year:'2-digit'});
+        const val = state.transactions.filter(t=> t.type==='Expense' && (toDate(t.date)>=first && toDate(t.date)<=last)).reduce((a,b)=>a+b.amt,0);
+        trendLabels.push(label); trendValues.push(val);
+      }
+
+      // Category chart
+      const ctx1 = document.getElementById('catChart');
+      if(catChart) catChart.destroy();
+      catChart = new Chart(ctx1, {
+        type: 'bar',
+        data: { labels: catLabels, datasets: [{ label: 'Spend', data: catValues }] },
+        options: {
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx)=> `${symbol()}${Number(ctx.parsed.y).toLocaleString()}` } } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+
+      // Trend chart
+      const ctx2 = document.getElementById('trendChart');
+      if(trendChart) trendChart.destroy();
+      trendChart = new Chart(ctx2, {
+        type: 'line',
+        data: { labels: trendLabels, datasets: [{ label: 'Monthly Spend', data: trendValues, tension: .3, fill: false }] },
+        options: {
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx)=> `${symbol()}${Number(ctx.parsed.y).toLocaleString()}` } } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    /* =============================
+       Export / Backup
+    ============================== */
+    function toCSV(){
+      const rows = [['Date','Description','Category','Type','Amount','Method','Notes'], ...state.transactions.map(t=>[t.date,t.desc,t.cat,t.type,t.amt,t.pay,t.notes])];
+      return rows.map(r=> r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    }
+    function download(filename, content, mime='text/plain'){
+      const blob = new Blob([content], {type:mime});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+    }
+
+    $('#btnExportCSV').onclick = ()=> download('transactions.csv', toCSV(), 'text/csv');
+    $('#btnBackupJSON').onclick = ()=> download('expense-backup.json', JSON.stringify(state,null,2), 'application/json');
+    $('#restoreFile').addEventListener('change', (e)=>{
+      const f = e.target.files[0]; if(!f) return;
+      const rd = new FileReader(); rd.onload = ()=>{ try{ const data = JSON.parse(rd.result); state = {...defaults, ...data}; save(); render(); }catch(err){ alert('Invalid JSON'); } };
+      rd.readAsText(f);
+    });
+
+    /* =============================
+       Render
+    ============================== */
+    function render(){ initSelectors(); renderTables(); renderKPIs(); renderCharts(); }
+
+    // Boot
+    render();
+  </script>
+</body>
+</html>
